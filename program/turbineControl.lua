@@ -318,100 +318,114 @@ function toggleAllCoils()
   end
 end
 
---Calculates/Reads the optiomal reactor rod level
+--Calculates/Reads the optimal reactor rod level
 function findOptimalFuelRodLevel()
 
-  --Load config?
-  if not (math.floor(rodLevel) == 0)  then
+  -- Bereits gespeicherte Config verwenden, falls gueltig.
+  -- Ein fehlender/ungueltiger Wert fuehrt jetzt sicher zu einer Neukalibrierung.
+  local savedRodLevel = tonumber(rodLevel)
+  if savedRodLevel ~= nil and savedRodLevel > 0 and savedRodLevel <= 99 then
+    rodLevel = math.floor(savedRodLevel)
     r.setAllControlRodLevels(rodLevel)
+    return
+  end
 
-  else
-    --Get reactor below 99c
-    getTo99c()
+  -- Reaktor vor der Kalibrierung abkuehlen
+  getTo99c()
 
-    --Enable reactor + turbines
-    r.setActive(true)
-    allTurbinesOn()
+  -- Reaktor + Turbinen einschalten
+  r.setActive(true)
+  allTurbinesOn()
 
-    --Calculation variables
-    local controlRodLevel = 99
-    local diff = 0
-    local targetSteamOutput = 2000*(amountTurbines+1)
-    local targetLevel = 99
+  local targetSteamOutput = 2000*(amountTurbines+1)
 
-    --Display
-    mon.setBackgroundColor(backgroundColor)
-    mon.setTextColor(textColor)
-    mon.clear()
+  -- Anzeige
+  mon.setBackgroundColor(backgroundColor)
+  mon.setTextColor(textColor)
+  mon.clear()
 
-    print("TargetSteam: "..targetSteamOutput)
+  if lang == "de" then
+    mon.setCursorPos(1,1)
+    mon.write("Finde optimales FuelRod Level...")
+    mon.setCursorPos(1,3)
+    mon.write("Berechne Level...")
+    mon.setCursorPos(1,5)
+    mon.write("Gesuchter Steam-Output: "..(input.formatNumber(math.floor(targetSteamOutput))).."mb/t")
+  elseif lang == "en" then
+    mon.setCursorPos(1,1)
+    mon.write("Finding optimal FuelRod Level...")
+    mon.setCursorPos(1,3)
+    mon.write("Calculating Level...")
+    mon.setCursorPos(1,5)
+    mon.write("Target Steam-Output: "..(input.formatNumberComma(math.floor(targetSteamOutput))).."mb/t")
+  end
+
+  -- Sichere binaere Suche:
+  -- Gesucht wird der HOECHSTE Rod-Level, der noch mindestens den
+  -- benoetigten Steam liefert. Das vermeidet unnoetig hohen Brennstoffverbrauch.
+  local low = 0
+  local high = 99
+  local bestLevel = nil
+
+  while low <= high do
+    local testLevel = math.floor((low + high) / 2)
+    r.setAllControlRodLevels(testLevel)
+    sleep(5)
+
+    local steamOutput = r.getHotFluidProducedLastTick()
+
+    mon.setCursorPos(1,3)
+    mon.write("FuelRod Level: "..testLevel.."   ")
 
     if lang == "de" then
-      mon.setCursorPos(1,1)
-      mon.write("Finde optimales FuelRod Level...")
-      mon.setCursorPos(1,3)
-      mon.write("Berechne Level...")
-      mon.setCursorPos(1,5)
-      mon.write("Gesuchter Steam-Output: "..(input.formatNumber(math.floor(targetSteamOutput))).."mb/t")
+      mon.setCursorPos(1,6)
+      mon.write("Aktueller Steam-Output: "..(input.formatNumber(math.floor(steamOutput))).."mb/t      ")
     elseif lang == "en" then
-      mon.setCursorPos(1,1)
-      mon.write("Finding optimal FuelRod Level...")
-      mon.setCursorPos(1,3)
-      mon.write("Calculating Level...")
-      mon.setCursorPos(1,5)
-      mon.write("Target Steam-Output: "..(input.formatNumberComma(math.floor(targetSteamOutput))).."mb/t")
+      mon.setCursorPos(1,6)
+      mon.write("Current Steam-Output: "..(input.formatNumberComma(math.floor(steamOutput))).."mb/t      ")
     end
 
-    --Calculate Level based on 2 values
-    r.setAllControlRodLevels(controlRodLevel)
-    sleep(2)
-    local steamOutput1 = r.getHotFluidProducedLastTick()
-    print("SO1: "..steamOutput1)
-    r.setAllControlRodLevels(controlRodLevel-1)
-    sleep(4)
-    local steamOutput2 = r.getHotFluidProducedLastTick()
-    print("SO2: "..steamOutput2)
-    diff = steamOutput2 - steamOutput1
-    print("Diff: "..diff)
+    if steamOutput >= targetSteamOutput then
+      bestLevel = testLevel
+      -- Noch weiter einfuehren und pruefen, ob die Leistung trotzdem reicht
+      low = testLevel + 1
+    else
+      -- Zu wenig Steam: Rods weiter heraus
+      high = testLevel - 1
+    end
+  end
 
-    targetLevel= 100-math.floor(targetSteamOutput/diff)
-    print("Target: "..targetLevel)
-    r.setAllControlRodLevels(targetLevel)
-    controlRodLevel = targetLevel
+  -- Falls selbst bei Rod-Level 0 nicht genug Steam erzeugt wird,
+  -- sauber abbrechen statt mit einem ungueltigen Wert weiterzulaufen.
+  if bestLevel == nil then
+    r.setAllControlRodLevels(0)
+    sleep(5)
+    local maxSteam = r.getHotFluidProducedLastTick()
 
-    --Find precise level
-    while true do
-      sleep(5)
-      local steamOutput = r.getHotFluidProducedLastTick()
-
-      mon.setCursorPos(1,3)
-      mon.write("FuelRod Level: "..controlRodLevel.."  ")
-
+    if maxSteam < targetSteamOutput then
+      r.setActive(false)
       if lang == "de" then
-        mon.setCursorPos(1,6)
-        mon.write("Aktueller Steam-Output: "..(input.formatNumber(steamOutput)).."mb/t    ")
-      elseif lang == "en" then
-        mon.setCursorPos(1,6)
-        mon.write("Current Steam-Output: "..(input.formatNumberComma(steamOutput)).."mb/t    ")
-      end
-
-      --Level too big
-      if steamOutput < targetSteamOutput then
-        controlRodLevel = controlRodLevel - 1
-        r.setAllControlRodLevels(controlRodLevel)
-
+        error("Reaktor produziert selbst bei RodLevel 0 nicht genug Steam fuer alle Turbinen.")
       else
-        r.setAllControlRodLevels(controlRodLevel)
-        rodLevel = controlRodLevel
-        saveOptionFile()
-        print("Target RodLevel: "..controlRodLevel)
-        sleep(2)
-        break
-      end --else
+        error("Reactor cannot produce enough steam for all turbines even at RodLevel 0.")
+      end
+    end
 
-    end --while
+    bestLevel = 0
+  end
 
-  end --else
+  rodLevel = bestLevel
+  r.setAllControlRodLevels(rodLevel)
+  saveOptionFile()
+
+  mon.setCursorPos(1,8)
+  if lang == "de" then
+    mon.write("Gespeichertes FuelRod Level: "..rodLevel.."   ")
+  else
+    mon.write("Saved FuelRod Level: "..rodLevel.."   ")
+  end
+
+  sleep(2)
 end --function
 
 --Gets the reactor below 99c
