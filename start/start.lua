@@ -41,7 +41,7 @@ function loadOptionFile()
 
 	--Werte zuordnen
 	version = optionList[3]
-	rodLevel = tonumber(optionList[5])
+	rodLevel = tonumber(optionList[5]) or 0
 	backgroundColor = tonumber(optionList[7])
 	textColor = tonumber(optionList[9])
 	reactorOffAt = tonumber(optionList[11])
