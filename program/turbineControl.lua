@@ -321,8 +321,6 @@ end
 --Calculates/Reads the optimal reactor rod level
 function findOptimalFuelRodLevel()
 
-  -- Bereits gespeicherte Config verwenden, falls gueltig.
-  -- Ein fehlender/ungueltiger Wert fuehrt jetzt sicher zu einer Neukalibrierung.
   local savedRodLevel = tonumber(rodLevel)
   if savedRodLevel ~= nil and savedRodLevel > 0 and savedRodLevel <= 99 then
     rodLevel = math.floor(savedRodLevel)
@@ -330,16 +328,14 @@ function findOptimalFuelRodLevel()
     return
   end
 
-  -- Reaktor vor der Kalibrierung abkuehlen
   getTo99c()
-
-  -- Reaktor + Turbinen einschalten
   r.setActive(true)
   allTurbinesOn()
 
   local targetSteamOutput = 2000*(amountTurbines+1)
+  local toleranceLow = targetSteamOutput - 100
+  local toleranceHigh = targetSteamOutput + 100
 
-  -- Anzeige
   mon.setBackgroundColor(backgroundColor)
   mon.setTextColor(textColor)
   mon.clear()
@@ -347,85 +343,74 @@ function findOptimalFuelRodLevel()
   if lang == "de" then
     mon.setCursorPos(1,1)
     mon.write("Finde optimales FuelRod Level...")
-    mon.setCursorPos(1,3)
-    mon.write("Berechne Level...")
     mon.setCursorPos(1,5)
-    mon.write("Gesuchter Steam-Output: "..(input.formatNumber(math.floor(targetSteamOutput))).."mb/t")
+    mon.write("Ziel Steam-Output: "..(input.formatNumber(math.floor(targetSteamOutput))).."mb/t")
   elseif lang == "en" then
     mon.setCursorPos(1,1)
     mon.write("Finding optimal FuelRod Level...")
-    mon.setCursorPos(1,3)
-    mon.write("Calculating Level...")
     mon.setCursorPos(1,5)
     mon.write("Target Steam-Output: "..(input.formatNumberComma(math.floor(targetSteamOutput))).."mb/t")
   end
 
-  -- Sichere binaere Suche:
-  -- Gesucht wird der HOECHSTE Rod-Level, der noch mindestens den
-  -- benoetigten Steam liefert. Das vermeidet unnoetig hohen Brennstoffverbrauch.
-  local low = 0
-  local high = 99
-  local bestLevel = nil
+  local controlRodLevel = 95
+  r.setAllControlRodLevels(controlRodLevel)
+  sleep(20)
 
-  while low <= high do
-    local testLevel = math.floor((low + high) / 2)
-    r.setAllControlRodLevels(testLevel)
-    sleep(5)
+  while true do
+    local sum = 0
+    local samples = 4
 
-    local steamOutput = r.getHotFluidProducedLastTick()
+    for s=1,samples do
+      sleep(5)
+      sum = sum + r.getHotFluidProducedLastTick()
+    end
+
+    local steamOutput = sum / samples
 
     mon.setCursorPos(1,3)
-    mon.write("FuelRod Level: "..testLevel.."   ")
+    mon.write("FuelRod Level: "..controlRodLevel.."   ")
 
     if lang == "de" then
       mon.setCursorPos(1,6)
-      mon.write("Aktueller Steam-Output: "..(input.formatNumber(math.floor(steamOutput))).."mb/t      ")
+      mon.write("Stabiler Steam-Output: "..(input.formatNumber(math.floor(steamOutput))).."mb/t      ")
     elseif lang == "en" then
       mon.setCursorPos(1,6)
-      mon.write("Current Steam-Output: "..(input.formatNumberComma(math.floor(steamOutput))).."mb/t      ")
+      mon.write("Stable Steam-Output: "..(input.formatNumberComma(math.floor(steamOutput))).."mb/t      ")
     end
 
-    if steamOutput >= targetSteamOutput then
-      bestLevel = testLevel
-      -- Noch weiter einfuehren und pruefen, ob die Leistung trotzdem reicht
-      low = testLevel + 1
-    else
-      -- Zu wenig Steam: Rods weiter heraus
-      high = testLevel - 1
+    if steamOutput >= toleranceLow and steamOutput <= toleranceHigh then
+      rodLevel = controlRodLevel
+      r.setAllControlRodLevels(rodLevel)
+      saveOptionFile()
+      sleep(2)
+      break
     end
-  end
 
-  -- Falls selbst bei Rod-Level 0 nicht genug Steam erzeugt wird,
-  -- sauber abbrechen statt mit einem ungueltigen Wert weiterzulaufen.
-  if bestLevel == nil then
-    r.setAllControlRodLevels(0)
-    sleep(5)
-    local maxSteam = r.getHotFluidProducedLastTick()
+    if steamOutput < toleranceLow then
+      controlRodLevel = controlRodLevel - 2
+      if controlRodLevel < 0 then controlRodLevel = 0 end
+      r.setAllControlRodLevels(controlRodLevel)
+    elseif steamOutput > toleranceHigh then
+      controlRodLevel = controlRodLevel + 2
+      if controlRodLevel > 99 then controlRodLevel = 99 end
+      r.setAllControlRodLevels(controlRodLevel)
+    end
 
-    if maxSteam < targetSteamOutput then
-      r.setActive(false)
-      if lang == "de" then
-        error("Reaktor produziert selbst bei RodLevel 0 nicht genug Steam fuer alle Turbinen.")
-      else
-        error("Reactor cannot produce enough steam for all turbines even at RodLevel 0.")
+    if controlRodLevel == 0 then
+      sleep(20)
+      local maxSteam = r.getHotFluidProducedLastTick()
+      if maxSteam < toleranceLow then
+        r.setActive(false)
+        if lang == "de" then
+          error("Reaktor produziert selbst bei RodLevel 0 nicht genug Steam fuer alle Turbinen.")
+        else
+          error("Reactor cannot produce enough steam for all turbines even at RodLevel 0.")
+        end
       end
     end
 
-    bestLevel = 0
+    sleep(15)
   end
-
-  rodLevel = bestLevel
-  r.setAllControlRodLevels(rodLevel)
-  saveOptionFile()
-
-  mon.setCursorPos(1,8)
-  if lang == "de" then
-    mon.write("Gespeichertes FuelRod Level: "..rodLevel.."   ")
-  else
-    mon.write("Saved FuelRod Level: "..rodLevel.."   ")
-  end
-
-  sleep(2)
 end --function
 
 --Gets the reactor below 99c
@@ -517,6 +502,25 @@ function checkEnergyLevel()
     end--if
 
   end --else
+
+  if r.getActive() then
+    local targetSteamOutput = 2000*(amountTurbines+1)
+    local steamOutput = r.getHotFluidProducedLastTick()
+    local lower = targetSteamOutput - 150
+    local upper = targetSteamOutput + 150
+
+    rodLevel = tonumber(rodLevel) or 0
+
+    if steamOutput < lower and rodLevel > 0 then
+      rodLevel = rodLevel - 1
+      r.setAllControlRodLevels(rodLevel)
+      saveOptionFile()
+    elseif steamOutput > upper and rodLevel < 99 then
+      rodLevel = rodLevel + 1
+      r.setAllControlRodLevels(rodLevel)
+      saveOptionFile()
+    end
+  end
 end --if
 
 --Gets turbines to targetSpeed
