@@ -8,9 +8,9 @@ backgroundColor
 textColor
 1
 reactorOffAt
-90
+99
 reactorOnAt
-50
+30
 mainMenu
 true
 autoUpdate
