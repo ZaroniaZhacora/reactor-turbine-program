@@ -503,24 +503,6 @@ function checkEnergyLevel()
 
   end --else
 
-  if r.getActive() then
-    local targetSteamOutput = 2000*(amountTurbines+1)
-    local steamOutput = r.getHotFluidProducedLastTick()
-    local lower = targetSteamOutput - 150
-    local upper = targetSteamOutput + 150
-
-    rodLevel = tonumber(rodLevel) or 0
-
-    if steamOutput < lower and rodLevel > 0 then
-      rodLevel = rodLevel - 1
-      r.setAllControlRodLevels(rodLevel)
-      saveOptionFile()
-    elseif steamOutput > upper and rodLevel < 99 then
-      rodLevel = rodLevel + 1
-      r.setAllControlRodLevels(rodLevel)
-      saveOptionFile()
-    end
-  end
 end --if
 
 --Gets turbines to targetSpeed
