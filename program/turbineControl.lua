@@ -320,14 +320,7 @@ end
 
 --Calculates/Reads the optimal reactor rod level
 function findOptimalFuelRodLevel()
-
-  local savedRodLevel = tonumber(rodLevel)
-  if savedRodLevel ~= nil and savedRodLevel > 0 and savedRodLevel <= 99 then
-    rodLevel = math.floor(savedRodLevel)
-    r.setAllControlRodLevels(rodLevel)
-    return
-  end
-
+  
   getTo99c()
   r.setActive(true)
   allTurbinesOn()
