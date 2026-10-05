@@ -7,6 +7,8 @@
 optionList = {}
 version = 0
 rodLevel = 0
+calibratedTurbines = -1
+forceCalibration = false
 backgroundColor = 0
 textColor = 0
 reactorOffAt = 0
@@ -52,6 +54,8 @@ function loadOptionFile()
 	overallMode = optionList[21]
 	program = optionList[23]
 	turbineTargetSpeed = tonumber(optionList[25])
+	calibratedTurbines = tonumber(optionList[27]) or -1
+    forceCalibration = optionList[29] == "true"
 end
 
 --Speichert alle Daten in der Optionsdatei
@@ -81,6 +85,8 @@ function refreshOptionList()
 	optionList[21] = overallMode
 	optionList[23] = program
 	optionList[25] = turbineTargetSpeed
+	optionList[27] = calibratedTurbines
+    optionList[29] = tostring(forceCalibration)
 end
 
 --Initialisiert alle angeschlossenen Geräte
