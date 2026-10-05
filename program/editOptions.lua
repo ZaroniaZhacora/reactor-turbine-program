@@ -53,6 +53,7 @@ function createAllButtons()
     touch1:add("Reaktor An",setOnAt,3,11,19,11)
     touch1:add("Turbinen Speed",setTurbineSpeed,3,13,19,13)
     touch1:add("Config loeschen",resetConfig,3,15,19,15)
+    touch1:add("Neu kalibrieren",forceRecalibration,3,17,19,17)
     touch1:add("Speichern",saveConfigFile,3,19,19,19)
     touch1:add("Zum Programm",exit,3,21,19,21)
     touch1:add("Hauptmenue",displayMenu,3,23,19,23)
@@ -100,6 +101,7 @@ function createAllButtons()
     touch1:add("Reactor On",setOnAt,3,11,19,11)
     touch1:add("Turbine Speed",setTurbineSpeed,3,13,19,13)
     touch1:add("Delete Config",resetConfig,3,15,19,15)
+    touch1:add("Recalibrate",forceRecalibration,3,17,19,17)
     touch1:add("Save",saveConfigFile,3,19,19,19)
     touch1:add("Back to program",exit,3,21,19,21)
     touch1:add("Main menu",displayMenu,3,23,19,23)
@@ -263,6 +265,22 @@ function mainMenu()
       elseif lang == "en" then
         mon.write("yes   ")
       end
+    end
+  end
+
+   mon.setCursorPos(24,17)
+
+  if lang == "de" then
+    if forceCalibration == true then
+      mon.write("Neukalibrierung: JA   ")
+    else
+      mon.write("Neukalibrierung: nein ")
+    end
+  elseif lang == "en" then
+    if forceCalibration == true then
+      mon.write("Recalibration: YES   ")
+    else
+      mon.write("Recalibration: no    ")
     end
   end
   getClick(mainMenu)
@@ -456,6 +474,11 @@ mode2 = "speed"
   --refreshOptionList()
   getClick(setTurbineSpeed)
   setTurbineSpeed()
+end
+
+function forceRecalibration()
+  forceCalibration = true
+  mainMenu()
 end
 
 function resetConfig()
