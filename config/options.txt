@@ -10,7 +10,7 @@ textColor
 reactorOffAt
 99
 reactorOnAt
-30
+10
 mainMenu
 true
 autoUpdate
@@ -23,3 +23,7 @@ program
 turbine
 turbineTargetSpeed
 1820
+calibratedTurbines
+-1
+forceCalibration
+false
