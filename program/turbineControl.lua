@@ -320,7 +320,21 @@ end
 
 --Calculates/Reads the optimal reactor rod level
 function findOptimalFuelRodLevel()
-  
+
+  local currentTurbines = amountTurbines + 1
+  local savedRodLevel = tonumber(rodLevel)
+
+  if forceCalibration ~= true
+     and calibratedTurbines == currentTurbines
+     and savedRodLevel ~= nil
+     and savedRodLevel >= 0
+     and savedRodLevel <= 99 then
+
+    rodLevel = math.floor(savedRodLevel)
+    r.setAllControlRodLevels(rodLevel)
+    return
+  end
+          
   getTo99c()
   r.setActive(true)
   allTurbinesOn()
@@ -371,8 +385,10 @@ function findOptimalFuelRodLevel()
       mon.write("Stable Steam-Output: "..(input.formatNumberComma(math.floor(steamOutput))).."mb/t      ")
     end
 
-    if steamOutput >= toleranceLow and steamOutput <= toleranceHigh then
+   if steamOutput >= toleranceLow and steamOutput <= toleranceHigh then
       rodLevel = controlRodLevel
+      calibratedTurbines = amountTurbines + 1
+      forceCalibration = false
       r.setAllControlRodLevels(rodLevel)
       saveOptionFile()
       sleep(2)
